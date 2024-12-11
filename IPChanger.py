@@ -11,8 +11,8 @@ class IPChanger:
     PROXY_LIST_FILENAME = 'proxy-list.txt'
 
     def __init__(self) -> None:
+        self.proxy_file_path: str = os.path.join(os.getcwd(), self.PROXY_LIST_FILENAME)
         self.proxy_list: None | list[str] = self.__load_proxies() # crude implementation. replace with database call later
-        self.proxy_file_path = os.path.join(os.getcwd(), self.PROXY_LIST_FILENAME)
 
     def __load_proxies(self) -> None | list[str]:
         if os.path.isfile(self.proxy_file_path):
