@@ -26,6 +26,7 @@ class IPChanger:
 
 
     def __scrape_proxies(self) -> None:
+        self.proxy_list = []
         print('Proxy list not found. Scraping proxies first ...')
         content = requests.get(self.PROXIES_WEBSITE).content
         soup = BeautifulSoup(content, features='html.parser')
@@ -33,7 +34,10 @@ class IPChanger:
         tbody = soup.find('table').find('tbody')
 
         for tr in tbody.find_all('tr'):
-            self.proxy_list.append(tr.find('td').text)
+            td = tr.find_all('td')
+            ip, port = td[0].text, td[1].text
+            proxy = f'{ip}:{port}'
+            self.proxy_list.append(proxy)
 
         with open(self.proxy_file_path, 'w') as file: # crude implementation. replace with database call later.
             for ip in self.proxy_list:
