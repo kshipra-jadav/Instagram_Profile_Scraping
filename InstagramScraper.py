@@ -2,15 +2,15 @@ import requests
 import user_agent
 from urllib.parse import urlparse
 import httpx
-import time
+import aiofiles
 
 from pprint import pp
 import os
 import json
 import asyncio
+import time
 
 from IPChanger import IPChanger
-from utils import timeit
 
 class InstagramScraper:
     USER_BASEURL = "https://www.instagram.com/api/v1/users/web_profile_info"
@@ -38,8 +38,8 @@ class InstagramScraper:
         # pp(user_dict)
         user_data = json.dumps(user_dict)
 
-        with open(os.path.join(self.PROFILES_FOLDER, f'{username}.json'), 'w') as f:
-            f.write(user_data)
+        async with aiofiles.open(os.path.join(self.PROFILES_FOLDER, f'{username}.json'), 'w') as f:
+            await f.write(user_data)
 
         print(f'Userdata saved to - \\profiles\\{username}.json')
 
