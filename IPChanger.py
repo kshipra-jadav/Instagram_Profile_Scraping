@@ -14,7 +14,6 @@ class IPChanger:
         self.proxy_list: list[str] = []
 
     def __scrape_proxies(self) -> None:
-        self.proxy_list = []
         print('Proxy list not found. Scraping proxies first ...')
         content = requests.get(self.PROXIES_WEBSITE).content
         soup = BeautifulSoup(content, features='html.parser')
@@ -39,4 +38,5 @@ class IPChanger:
 # for testing purpose only
 if __name__ == '__main__':
     ipc = IPChanger()
-    print(ipc.getproxy())
+    for _ in range(5):
+        print(ipc.getproxy())

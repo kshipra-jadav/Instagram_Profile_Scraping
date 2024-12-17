@@ -7,6 +7,7 @@ import os
 import json
 
 from IPChanger import IPChanger
+from utils import timeit
 
 class InstagramScraper:
     USER_BASEURL = "https://www.instagram.com/api/v1/users/web_profile_info"
@@ -16,7 +17,9 @@ class InstagramScraper:
     def __init__(self) -> None:
         self.ipc = IPChanger()
 
+    @timeit
     def __scrape_user(self, username: str) -> None:
+        print(f'Scraping Userdata for - {username}')
         params = {'username': username}
         headers = {
             'User-Agent': user_agent.generate_user_agent(),
@@ -26,25 +29,21 @@ class InstagramScraper:
             'http': self.ipc.getproxy(),
         }
 
-        print(proxy)
-
         req = requests.models.PreparedRequest()
 
         req.prepare_url(url=self.USER_BASEURL, params=params)
-
-        print(req.url)
 
         res = requests.get(req.url, headers=headers, proxies=proxy)
         data = res.json()['data']['user']
         user_dict = self.__parse_user_json(data)
 
-        pp(user_dict)
+        # pp(user_dict)
         user_data = json.dumps(user_dict)
 
         with open(os.path.join(self.PROFILES_FOLDER, f'{username}.json'), 'w') as f:
             f.write(user_data)
 
-        print(f'Userdata saved to - {os.path.join(self.PROFILES_FOLDER, username)}.json')
+        print(f'Userdata saved to - \\profiles\\{username}.json')
 
     @staticmethod
     def __parse_user_json(user: dict[str, str: str]) -> dict[str, str]:
@@ -76,8 +75,14 @@ class InstagramScraper:
     def scrape_user_from_username(self, username: str):
         self.__scrape_user(username)
 
+@timeit
+def main():
+    usernames = ['leomessi', 'cristiano', 'arianagrande', 'theweekend']
+    igscr = InstagramScraper()
+    for username in usernames:
+        igscr.scrape_user_from_username(username)
+
 
 # testing purposes only
 if __name__ == '__main__':
-    igscr = InstagramScraper()
-    igscr.scrape_user_from_url("https://www.instagram.com/leomessi/?hl=en")
+    main()
