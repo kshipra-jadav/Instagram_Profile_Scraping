@@ -10,11 +10,8 @@ class IPChanger:
     PROXIES_WEBSITE = 'https://free-proxy-list.net/'
     PROXY_LIST_FILENAME = 'proxy-list.txt'
 
-    def __init__(self, proxy_invalidate=True) -> None:
-        self.proxy_file_path: str = os.path.join(os.getcwd(), self.PROXY_LIST_FILENAME)
+    def __init__(self) -> None:
         self.proxy_list: list[str] = []
-        self.proxy_invalidate = proxy_invalidate
-
 
     def __scrape_proxies(self) -> None:
         self.proxy_list = []
@@ -31,7 +28,7 @@ class IPChanger:
             self.proxy_list.append(proxy)
 
     def getproxy(self) -> str:
-        if not self.proxy_list or self.proxy_invalidate:
+        if not self.proxy_list:
             self.__scrape_proxies()
 
         return random.sample(self.proxy_list, k=1)[0]
