@@ -1,10 +1,13 @@
 import requests
 import user_agent
 from urllib.parse import urlparse
+import httpx
+import time
 
 from pprint import pp
 import os
 import json
+import asyncio
 
 from IPChanger import IPChanger
 from utils import timeit
@@ -17,23 +20,18 @@ class InstagramScraper:
     def __init__(self) -> None:
         self.ipc = IPChanger()
 
-    @timeit
-    def __scrape_user(self, username: str) -> None:
+    async def __scrape_user(self, client: httpx.AsyncClient, username: str) -> dict[str, str]:
         print(f'Scraping Userdata for - {username}')
         params = {'username': username}
         headers = {
             'User-Agent': user_agent.generate_user_agent(),
             'X-IG-App-ID': self.X_IG_APP_ID
         }
-        proxy = {
-            'http': self.ipc.getproxy(),
-        }
 
         req = requests.models.PreparedRequest()
-
         req.prepare_url(url=self.USER_BASEURL, params=params)
 
-        res = requests.get(req.url, headers=headers, proxies=proxy)
+        res = await client.get(req.url, headers=headers)
         data = res.json()['data']['user']
         user_dict = self.__parse_user_json(data)
 
@@ -44,6 +42,33 @@ class InstagramScraper:
             f.write(user_data)
 
         print(f'Userdata saved to - \\profiles\\{username}.json')
+
+        return {username: user_dict['Number of Followers']}
+
+    def __scrape_user_sync(self, client: httpx.Client, username: str) -> dict[str, str]:
+        print(f'Scraping Userdata for - {username}')
+        params = {'username': username}
+        headers = {
+            'User-Agent': user_agent.generate_user_agent(),
+            'X-IG-App-ID': self.X_IG_APP_ID
+        }
+
+        req = requests.models.PreparedRequest()
+        req.prepare_url(url=self.USER_BASEURL, params=params)
+
+        res = client.get(req.url, headers=headers)
+        data = res.json()['data']['user']
+        user_dict = self.__parse_user_json(data)
+
+        # pp(user_dict)
+        user_data = json.dumps(user_dict)
+
+        with open(os.path.join(self.PROFILES_FOLDER, f'{username}.json'), 'w') as f:
+            f.write(user_data)
+
+        print(f'Userdata saved to - \\profiles\\{username}.json')
+
+        return {username: user_dict['Number of Followers']}
 
     @staticmethod
     def __parse_user_json(user: dict[str, str: str]) -> dict[str, str]:
@@ -67,22 +92,50 @@ class InstagramScraper:
 
         return user_dict
 
-    def scrape_user_from_url(self, user_url: str):
-        url = urlparse(user_url)
-        username = url.path.replace("/", "")
-        self.__scrape_user(username)
+    async def scrape_user_from_url(self, user_urls: list[str]):
+        for user_url in user_urls:
+            url = urlparse(user_url)
+            username = url.path.replace("/", "")
+            # self.__scrape_user(username)
 
-    def scrape_user_from_username(self, username: str):
-        self.__scrape_user(username)
+    async def scrape_user_from_username(self, usernames: list[str]):
+        start = time.perf_counter()
+        proxy = self.ipc.getproxy()
+        proxy_mounts = {
+            'http://': httpx.AsyncHTTPTransport(proxy=f'http://{proxy}'),
+            'https://': httpx.AsyncHTTPTransport(proxy=f'https://{proxy}')
+        }
+        client = httpx.AsyncClient(follow_redirects=True,
+                                   # mounts=proxy_mounts,
+                                   timeout=10)
 
-@timeit
-def main():
-    usernames = ['leomessi', 'cristiano', 'arianagrande', 'theweekend']
+        tasks = []
+        for username in usernames:
+            tasks.append(asyncio.create_task(self.__scrape_user(client, username)))
+
+        results = await asyncio.gather(*tasks)
+        print(results)
+
+
+        await client.aclose()
+        print(f"Scrapning {len(usernames)} took {time.perf_counter() - start:.3f}seconds!")
+
+    def scrape_user_from_username_sync(self, usernames: list[str]):
+        start = time.perf_counter()
+        client = httpx.Client(follow_redirects=True, timeout=10)
+        results = [self.__scrape_user_sync(client, username) for username in usernames]
+        print(results)
+        client.close()
+        print(f"Scraping {len(usernames)} synchronously took {time.perf_counter() - start:.3f}seconds!")
+
+async def main():
+    usernames = ['leomessi', 'theweekend', 'arianagrande', 'cristiano']
     igscr = InstagramScraper()
-    for username in usernames:
-        igscr.scrape_user_from_username(username)
+    igscr.scrape_user_from_username_sync(usernames)
+    await igscr.scrape_user_from_username(usernames)
+
 
 
 # testing purposes only
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
