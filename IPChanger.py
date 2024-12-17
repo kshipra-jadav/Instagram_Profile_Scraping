@@ -12,18 +12,8 @@ class IPChanger:
 
     def __init__(self, proxy_invalidate=True) -> None:
         self.proxy_file_path: str = os.path.join(os.getcwd(), self.PROXY_LIST_FILENAME)
-        self.proxy_list: None | list[str] = self.__load_proxies() # crude implementation. replace with database call later
+        self.proxy_list: list[str] = []
         self.proxy_invalidate = proxy_invalidate
-
-    def __load_proxies(self) -> None | list[str]:
-        if os.path.isfile(self.proxy_file_path):
-            print('Proxy list found. Loading proxies from disk ...')
-            with open(self.proxy_file_path) as f:
-                iplist = [line.strip('\n') for line in f]
-
-            return iplist
-
-        return None
 
 
     def __scrape_proxies(self) -> None:
@@ -39,12 +29,6 @@ class IPChanger:
             ip, port = td[0].text, td[1].text
             proxy = f'{ip}:{port}'
             self.proxy_list.append(proxy)
-
-        with open(self.proxy_file_path, 'w') as file: # crude implementation. replace with database call later.
-            for ip in self.proxy_list:
-                file.write(ip)
-                file.write('\n')
-        print(f'Proxies saved to {self.proxy_file_path}')
 
     def getproxy(self) -> str:
         if not self.proxy_list or self.proxy_invalidate:
