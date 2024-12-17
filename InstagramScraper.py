@@ -3,12 +3,15 @@ import user_agent
 from urllib.parse import urlparse
 
 from pprint import pp
+import os
+import json
 
 from IPChanger import IPChanger
 
 class InstagramScraper:
     USER_BASEURL = "https://www.instagram.com/api/v1/users/web_profile_info"
     X_IG_APP_ID = "936619743392459"
+    PROFILES_FOLDER = os.path.join(os.getcwd(), 'profiles')
 
     def __init__(self) -> None:
         self.ipc = IPChanger()
@@ -32,29 +35,38 @@ class InstagramScraper:
         print(req.url)
 
         res = requests.get(req.url, headers=headers, proxies=proxy)
-        data = res.json()['data']
-        user_name = data['user']['username']
-        full_name = data['user']['full_name']
-        ig_id = data['user']['id']
-        cat_enum = data['user']['category_enum']
-        cat_name = data['user']['category_name']
-        related_profiles = data['user']['edge_related_profiles']['edges']
-        num_followers = data['user']['edge_followed_by']['count']
-        num_posts = data['user']['edge_owner_to_timeline_media']['count']
-
-        user_dict = {
-            'user_name': user_name,
-            'full_name': full_name,
-            'ig_id': ig_id,
-            'cat_enum': cat_enum,
-            'cat_name': cat_name,
-            'num_posts': num_posts,
-            'num_followers': num_followers,
-            'related_profiles': related_profiles,
-        }
+        data = res.json()['data']['user']
+        user_dict = self.__parse_user_json(data)
 
         pp(user_dict)
+        user_data = json.dumps(user_dict)
 
+        with open(os.path.join(self.PROFILES_FOLDER, f'{username}.json'), 'w') as f:
+            f.write(user_data)
+
+        print(f'Userdata saved to - {os.path.join(self.PROFILES_FOLDER, username)}.json')
+
+    @staticmethod
+    def __parse_user_json(user: dict[str, str: str]) -> dict[str, str]:
+        full_name = user['full_name']
+        ig_id = user['id']
+        cat_enum = user['category_enum']
+        cat_name = user['category_name']
+        related_profiles = [profile['node']['username'] for profile in user['edge_related_profiles']['edges']]
+        num_followers = user['edge_followed_by']['count']
+        num_posts = user['edge_owner_to_timeline_media']['count']
+
+        user_dict = {
+            'Full Name': full_name,
+            'Instagram ID': ig_id,
+            'Cateogy ENUM': cat_enum,
+            'Category Name': cat_name,
+            'Number of Posts': num_posts,
+            'Number of Followers': num_followers,
+            'Related Profiles': related_profiles,
+        }
+
+        return user_dict
 
     def scrape_user_from_url(self, user_url: str):
         url = urlparse(user_url)
