@@ -19,6 +19,8 @@ class InstagramScraper:
 
     def __init__(self) -> None:
         self.ipc = IPChanger()
+        if not os.path.isdir(self.PROFILES_FOLDER):
+            os.mkdir(self.PROFILES_FOLDER)
 
     async def __scrape_user(self, client: httpx.AsyncClient, username: str) -> dict[str, str]:
         print(f'Scraping Userdata for - {username}')
@@ -38,8 +40,8 @@ class InstagramScraper:
         # pp(user_dict)
         user_data = json.dumps(user_dict)
 
-        async with aiofiles.open(os.path.join(self.PROFILES_FOLDER, f'{username}.json'), 'w') as f:
-            await f.write(user_data)
+        with open(os.path.join(self.PROFILES_FOLDER, f'{username}.json'), 'w') as f:
+            f.write(user_data)
 
         print(f'Userdata saved to - \\profiles\\{username}.json')
 
@@ -103,10 +105,10 @@ class InstagramScraper:
         proxy = self.ipc.getproxy()
         proxy_mounts = {
             'http://': httpx.AsyncHTTPTransport(proxy=f'http://{proxy}'),
-            'https://': httpx.AsyncHTTPTransport(proxy=f'https://{proxy}')
         }
+
         client = httpx.AsyncClient(follow_redirects=True,
-                                   # mounts=proxy_mounts,
+                                   mounts=proxy_mounts,
                                    timeout=10)
 
         tasks = []
@@ -131,7 +133,6 @@ class InstagramScraper:
 async def main():
     usernames = ['leomessi', 'theweekend', 'arianagrande', 'cristiano']
     igscr = InstagramScraper()
-    igscr.scrape_user_from_username_sync(usernames)
     await igscr.scrape_user_from_username(usernames)
 
 
