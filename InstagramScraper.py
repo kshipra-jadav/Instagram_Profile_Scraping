@@ -22,8 +22,16 @@ class InstagramScraper:
         if not os.path.isdir(self.PROFILES_FOLDER):
             os.mkdir(self.PROFILES_FOLDER)
 
-    async def __scrape_user(self, client: httpx.AsyncClient, username: str) -> dict[str, str]:
-        print(f'Scraping Userdata for - {username}')
+    async def __scrape_user(self, username: str) -> dict[str, str]:
+        proxy = self.ipc.getproxy()
+        proxy_mounts = {
+            'http://': httpx.AsyncHTTPTransport(proxy=f'http://{proxy}'),
+        }
+
+        client = httpx.AsyncClient(follow_redirects=True, mounts=proxy_mounts, timeout=10)
+
+        print(f"Using Proxy - http://{proxy} | Scraping User - {username}")
+        
         params = {'username': username}
         headers = {
             'User-Agent': user_agent.generate_user_agent(),
@@ -44,6 +52,8 @@ class InstagramScraper:
             f.write(user_data)
 
         print(f'Userdata saved to - \\profiles\\{username}.json')
+
+        await client.aclose()
 
         return {username: user_dict['Number of Followers']}
 
@@ -101,25 +111,15 @@ class InstagramScraper:
             # self.__scrape_user(username)
 
     async def scrape_user_from_username(self, usernames: list[str]):
-        start = time.perf_counter()
-        proxy = self.ipc.getproxy()
-        proxy_mounts = {
-            'http://': httpx.AsyncHTTPTransport(proxy=f'http://{proxy}'),
-        }
-
-        client = httpx.AsyncClient(follow_redirects=True,
-                                   mounts=proxy_mounts,
-                                   timeout=10)
-
         tasks = []
+        start = time.perf_counter()
         for username in usernames:
-            tasks.append(asyncio.create_task(self.__scrape_user(client, username)))
+            tasks.append(asyncio.create_task(self.__scrape_user(username)))
 
         results = await asyncio.gather(*tasks)
         print(results)
 
 
-        await client.aclose()
         print(f"Scrapning {len(usernames)} took {time.perf_counter() - start:.3f}seconds!")
 
     def scrape_user_from_username_sync(self, usernames: list[str]):
