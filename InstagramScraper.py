@@ -17,11 +17,16 @@ class InstagramScraper:
     POST_BASEURL = "https://www.instagram.com/graphql/query/?query_hash=e769aa130647d2354c40ea6a439bfc08&variables="
     X_IG_APP_ID = "936619743392459"
     PROFILES_FOLDER = os.path.join(os.getcwd(), 'profiles')
+    POSTS_FOLDER = os.path.join(os.getcwd(), 'posts')
 
     def __init__(self) -> None:
         self.ipc = IPChanger()
+
         if not os.path.isdir(self.PROFILES_FOLDER):
             os.mkdir(self.PROFILES_FOLDER)
+
+        if not os.path.isdir(self.POSTS_FOLDER):
+             os.mkdir(self.POSTS_FOLDER)
 
     async def __scrape_user(self, username: str) -> dict[str, str]:
         proxy = self.ipc.getproxy()
@@ -97,44 +102,80 @@ class InstagramScraper:
 
         print(f"Scrapning {len(usernames)} took {time.perf_counter() - start:.3f}seconds!")
 
-    async def scrape_user_posts(self, user_id: str = '427553890') -> None:
-        proxy = self.ipc.getproxy()
-        proxy_mounts = {
-            'http://': httpx.AsyncHTTPTransport(proxy=f'http://{proxy}'),
-        }
-
-        client = httpx.AsyncClient(follow_redirects=True, mounts=proxy_mounts, timeout=10)
-
+    async def scrape_user_posts(self, user_id: str) -> None:
         variables = {
         "id": user_id,
-        "first": 22,
+        "first": 12,
         "after": None,
         }
 
         page_num = 1
 
+        max_retries = 10
+        curr_retries = 0
+
         posts = []
         
-        # while True:
-        response = await client.get(self.POST_BASEURL + json.dumps(variables))
-        data = response.json()
+        while True:
+            if curr_retries > max_retries:
+                print('Max Retries Exceeded')
+                print('Stopping now ... ')
+                break
 
-        
+            client: httpx.AsyncClient = self.__get_proxied_client()
+
+            print(f"Scraping Page Number - {page_num}")
+
+            response = await client.get(self.POST_BASEURL + json.dumps(variables))
+
+            if 'proxy-status' in response.headers:
+                print('Proxy Status Header Detected')
+                curr_retries += 1
+                print('Going to sleep for 2 seconds')
+                await asyncio.sleep(2)
+                print('Back from sleep')
+                continue
+            
+            
+            data = response.json()
+
+            posts.extend(self.__parse_posts(data['data']))
+
+            page_info = data['data']["user"]["edge_owner_to_timeline_media"]['page_info']
+
+            if not page_info['has_next_page']:
+                print('Max Amount of Posts Have Been Scraped')
+                print(f'Number of Posts Scraped - {len(posts)}')
+                break
+
+            if variables["after"] == page_info["end_cursor"]:
+                print('Max Amount of Posts Have Been Scraped')
+                print(f'Number of Posts Scraped - {len(posts)}')
+                break
+
+            variables["after"] = page_info["end_cursor"]
+
+            page_num += 1
+
+            await client.aclose()
+
+            with open(os.path.join(self.POSTS_FOLDER, f'{user_id}.json'), 'w') as f:
+                json.dump(posts, f, indent=4)
 
 
-        print(data)
 
-        await client.aclose()
+    def __get_proxied_client(self) -> httpx.AsyncClient:
+        proxy = self.ipc.getproxy()
+        proxy_mounts = {
+            'http://': httpx.AsyncHTTPTransport(proxy=f'http://{proxy}'),
+        }
+
+        client = httpx.AsyncClient(follow_redirects=True, mounts=proxy_mounts, timeout=40)
+
+        return client
 
 
-    def temp(self):
-        data = None
-
-        with open('test.json', 'r') as f:
-            data = json.load(f)
-        
-        data = data['data']
-
+    def __parse_posts(self, data):
         posts = []
 
         for post in data['user']['edge_owner_to_timeline_media']['edges']:
@@ -180,7 +221,7 @@ class InstagramScraper:
 
             posts.append(post_dict)
         
-        pp(posts)
+        return posts
 
 
 
@@ -195,11 +236,9 @@ def count_rel():
 async def main():
     usernames = ['leomessi', 'theweekend', 'arianagrande', 'cristiano', 'virdas']
     igscr = InstagramScraper()
-    await igscr.scrape_user_from_username(usernames)
+    # await igscr.scrape_user_from_username(usernames)
 
-    # igscr.temp()
-
-    count_rel()
+    await igscr.scrape_user_posts(user_id='7719696') # ariana grande
 
 
 

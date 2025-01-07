@@ -1,4 +1,5 @@
 /profiles
+/posts
 proxy-list.txt
 __pycache__
 .venv
