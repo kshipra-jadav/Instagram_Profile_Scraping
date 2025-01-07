@@ -14,6 +14,7 @@ from IPChanger import IPChanger
 
 class InstagramScraper:
     USER_BASEURL = "https://www.instagram.com/api/v1/users/web_profile_info"
+    POST_BASEURL = "https://www.instagram.com/graphql/query/?query_hash=e769aa130647d2354c40ea6a439bfc08&variables="
     X_IG_APP_ID = "936619743392459"
     PROFILES_FOLDER = os.path.join(os.getcwd(), 'profiles')
 
@@ -96,15 +97,109 @@ class InstagramScraper:
 
         print(f"Scrapning {len(usernames)} took {time.perf_counter() - start:.3f}seconds!")
 
-    def scrape_post_from_url(self, post_url: str) -> None:
-        pass
+    async def scrape_user_posts(self, user_id: str = '427553890') -> None:
+        proxy = self.ipc.getproxy()
+        proxy_mounts = {
+            'http://': httpx.AsyncHTTPTransport(proxy=f'http://{proxy}'),
+        }
 
+        client = httpx.AsyncClient(follow_redirects=True, mounts=proxy_mounts, timeout=10)
+
+        variables = {
+        "id": user_id,
+        "first": 22,
+        "after": None,
+        }
+
+        page_num = 1
+
+        posts = []
+        
+        # while True:
+        response = await client.get(self.POST_BASEURL + json.dumps(variables))
+        data = response.json()
+
+        
+
+
+        print(data)
+
+        await client.aclose()
+
+
+    def temp(self):
+        data = None
+
+        with open('test.json', 'r') as f:
+            data = json.load(f)
+        
+        data = data['data']
+
+        posts = []
+
+        for post in data['user']['edge_owner_to_timeline_media']['edges']:
+            post = post['node']
+            img_url = post['display_url']
+            shortcode = post['shortcode']
+            num_comments = post['edge_media_to_comment']['count']
+            post_timestamp = post['taken_at_timestamp']
+            num_likes = post['edge_media_preview_like']['count']
+
+            caption = None
+            tagged_user = []
+            sponsor_usr = []
+
+            if len(post['edge_media_to_caption']['edges']) == 0:
+                caption = ""
+           
+            else:
+                caption = post['edge_media_to_caption']['edges'][0]['node']['text']
+            
+            if len(post['edge_media_to_tagged_user']) > 0:
+                users = post['edge_media_to_tagged_user']['edges']
+
+                for user in users:
+                    tagged_user.append(user['node']['user']['username'])
+            
+            if len(post['edge_media_to_sponsor_user']['edges']) > 0:
+                users = post['edge_media_to_sponsor_user']['edges']
+
+                for user in users:
+                    sponsor_usr.append(user['node']['sponsor']['username'])
+
+            post_dict = {
+                'Image URL': img_url,
+                'Tagged Users': tagged_user,
+                'Caption': caption,
+                'Short Code': shortcode,
+                'Number of Comments': num_comments,
+                'Sponsor Users': sponsor_usr,
+                'Post Timestamp': post_timestamp,
+                'Number of Likes': num_likes
+            }
+
+            posts.append(post_dict)
+        
+        pp(posts)
+
+
+
+def count_rel():
+    for file in os.listdir('profiles'):
+        with open(f'profiles/{file}', 'r') as f:
+            data = json.load(f)
+
+            print(f"{data['Full Name']} - {len(data['Related Profiles'])}")
 
 
 async def main():
-    usernames = ['leomessi', 'theweekend', 'arianagrande', 'cristiano']
+    usernames = ['leomessi', 'theweekend', 'arianagrande', 'cristiano', 'virdas']
     igscr = InstagramScraper()
     await igscr.scrape_user_from_username(usernames)
+
+    # igscr.temp()
+
+    count_rel()
 
 
 
