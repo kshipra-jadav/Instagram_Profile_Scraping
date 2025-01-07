@@ -55,33 +55,7 @@ class InstagramScraper:
 
         await client.aclose()
 
-        return {username: user_dict['Number of Followers']}
-
-    def __scrape_user_sync(self, client: httpx.Client, username: str) -> dict[str, str]:
-        print(f'Scraping Userdata for - {username}')
-        params = {'username': username}
-        headers = {
-            'User-Agent': user_agent.generate_user_agent(),
-            'X-IG-App-ID': self.X_IG_APP_ID
-        }
-
-        req = requests.models.PreparedRequest()
-        req.prepare_url(url=self.USER_BASEURL, params=params)
-
-        res = client.get(req.url, headers=headers)
-        data = res.json()['data']['user']
-        user_dict = self.__parse_user_json(data)
-
-        # pp(user_dict)
-        user_data = json.dumps(user_dict)
-
-        with open(os.path.join(self.PROFILES_FOLDER, f'{username}.json'), 'w') as f:
-            f.write(user_data)
-
-        print(f'Userdata saved to - \\profiles\\{username}.json')
-
-        return {username: user_dict['Number of Followers']}
-
+        return {username: user_dict['Instagram ID']}
     @staticmethod
     def __parse_user_json(user: dict[str, str: str]) -> dict[str, str]:
         full_name = user['full_name']
@@ -122,13 +96,10 @@ class InstagramScraper:
 
         print(f"Scrapning {len(usernames)} took {time.perf_counter() - start:.3f}seconds!")
 
-    def scrape_user_from_username_sync(self, usernames: list[str]):
-        start = time.perf_counter()
-        client = httpx.Client(follow_redirects=True, timeout=10)
-        results = [self.__scrape_user_sync(client, username) for username in usernames]
-        print(results)
-        client.close()
-        print(f"Scraping {len(usernames)} synchronously took {time.perf_counter() - start:.3f}seconds!")
+    def scrape_post_from_url(self, post_url: str) -> None:
+        pass
+
+
 
 async def main():
     usernames = ['leomessi', 'theweekend', 'arianagrande', 'cristiano']
