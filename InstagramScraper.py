@@ -29,14 +29,9 @@ class InstagramScraper:
              os.mkdir(self.POSTS_FOLDER)
 
     async def __scrape_user(self, username: str) -> dict[str, str]:
-        proxy = self.ipc.getproxy()
-        proxy_mounts = {
-            'http://': httpx.AsyncHTTPTransport(proxy=f'http://{proxy}'),
-        }
+        client = self.__get_proxied_client()
 
-        client = httpx.AsyncClient(follow_redirects=True, mounts=proxy_mounts, timeout=10)
-
-        print(f"Using Proxy - http://{proxy} | Scraping User - {username}")
+        print(f"Scraping User - {username}")
         
         params = {'username': username}
         headers = {
@@ -71,6 +66,7 @@ class InstagramScraper:
         related_profiles = [profile['node']['username'] for profile in user['edge_related_profiles']['edges']]
         num_followers = user['edge_followed_by']['count']
         num_posts = user['edge_owner_to_timeline_media']['count']
+        bio = user['biography_with_entities']['raw_text']
 
         user_dict = {
             'Full Name': full_name,
@@ -80,6 +76,7 @@ class InstagramScraper:
             'Number of Posts': num_posts,
             'Number of Followers': num_followers,
             'Related Profiles': related_profiles,
+            'Biography': bio
         }
 
         return user_dict
@@ -162,8 +159,6 @@ class InstagramScraper:
             with open(os.path.join(self.POSTS_FOLDER, f'{user_id}.json'), 'w') as f:
                 json.dump(posts, f, indent=4)
 
-
-
     def __get_proxied_client(self) -> httpx.AsyncClient:
         proxy = self.ipc.getproxy()
         proxy_mounts = {
@@ -173,7 +168,6 @@ class InstagramScraper:
         client = httpx.AsyncClient(follow_redirects=True, mounts=proxy_mounts, timeout=40)
 
         return client
-
 
     def __parse_posts(self, data):
         posts = []
@@ -236,9 +230,8 @@ def count_rel():
 async def main():
     usernames = ['leomessi', 'theweekend', 'arianagrande', 'cristiano', 'virdas']
     igscr = InstagramScraper()
-    # await igscr.scrape_user_from_username(usernames)
-
-    await igscr.scrape_user_posts(user_id='7719696') # ariana grande
+    # await igscr.scrape_user_from_username(usernames=['mrtechsingh'])
+    # await igscr.scrape_user_posts(user_id='7719696') # ariana grande
 
 
 

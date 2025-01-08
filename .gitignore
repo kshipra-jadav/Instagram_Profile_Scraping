@@ -3,3 +3,4 @@
 proxy-list.txt
 __pycache__
 .venv
+*.json
