@@ -105,7 +105,8 @@ except Exception as e:
     print('The following error has occurred: ', e)
     print('')
 finally:
-    session.close()
+    session.close()influencers
+
     
 # adding data to 'Posts' table
 

@@ -179,6 +179,7 @@ class InstagramScraper:
             num_comments = post['edge_media_to_comment']['count']
             post_timestamp = post['taken_at_timestamp']
             num_likes = post['edge_media_preview_like']['count']
+            user_id = post['owner']['id']
 
             caption = None
             tagged_user = []
@@ -210,7 +211,8 @@ class InstagramScraper:
                 'Number of Comments': num_comments,
                 'Sponsor Users': sponsor_usr,
                 'Post Timestamp': post_timestamp,
-                'Number of Likes': num_likes
+                'Number of Likes': num_likes,
+                'User ID': user_id
             }
 
             posts.append(post_dict)
@@ -231,7 +233,7 @@ async def main():
     usernames = ['leomessi', 'theweekend', 'arianagrande', 'cristiano', 'virdas']
     igscr = InstagramScraper()
     # await igscr.scrape_user_from_username(usernames=['mrtechsingh'])
-    # await igscr.scrape_user_posts(user_id='7719696') # ariana grande
+    await igscr.scrape_user_posts(user_id='173560420') # cristiano
 
 
 
