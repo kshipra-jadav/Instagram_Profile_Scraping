@@ -1,4 +1,5 @@
 from sqlalchemy import Column, String, Integer, BigInteger, ARRAY
+from sqlalchemy.orm import relationship
 
 from db.base import Base
 
@@ -13,6 +14,7 @@ class Influencer(Base):
     num_followers = Column(BigInteger, nullable=False)
     biography = Column(String(5000), nullable=False)
     related_profiles = Column(ARRAY(String), nullable=False)
+
 
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
