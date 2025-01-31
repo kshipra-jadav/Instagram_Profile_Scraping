@@ -12,6 +12,9 @@ import time
 
 from IPChanger import IPChanger
 
+from db.engine import make_session
+from db.influencer import Influencer
+
 class InstagramScraper:
     USER_BASEURL = "https://www.instagram.com/api/v1/users/web_profile_info"
     POST_BASEURL = "https://www.instagram.com/graphql/query/?query_hash=e769aa130647d2354c40ea6a439bfc08&variables="
@@ -21,6 +24,7 @@ class InstagramScraper:
 
     def __init__(self) -> None:
         self.ipc = IPChanger()
+        self.session = make_session()
 
         if not os.path.isdir(self.PROFILES_FOLDER):
             os.mkdir(self.PROFILES_FOLDER)
@@ -46,17 +50,20 @@ class InstagramScraper:
         data = res.json()['data']['user']
         user_dict = self.__parse_user_json(data)
 
-        # pp(user_dict)
-        user_data = json.dumps(user_dict)
+        inf = Influencer(**user_dict)
 
-        with open(os.path.join(self.PROFILES_FOLDER, f'{username}.json'), 'w') as f:
-            f.write(user_data)
+        try:
+            self.session.add(inf)
+            self.session.commit()
+            print(f"{user_dict['name']} Successfully Inserted in DB")
+        except Exception as e:
+            print(f"Error occured - {e}")
+            self.session.rollback()
 
-        print(f'Userdata saved to - \\profiles\\{username}.json')
 
         await client.aclose()
 
-        return {username: user_dict['Instagram ID']}
+        return {'User Name': user_dict['name']}
     @staticmethod
     def __parse_user_json(user: dict[str, str: str]) -> dict[str, str]:
         full_name = user['full_name']
@@ -69,16 +76,16 @@ class InstagramScraper:
         bio = user['biography_with_entities']['raw_text']
 
         user_dict = {
-            'Full Name': full_name,
-            'Instagram ID': ig_id,
-            'Cateogy ENUM': cat_enum,
-            'Category Name': cat_name,
-            'Number of Posts': num_posts,
-            'Number of Followers': num_followers,
-            'Related Profiles': related_profiles,
-            'Biography': bio
+            'instagram_id': ig_id,
+            'name': full_name,
+            'category': cat_name,
+            'enum': cat_enum,
+            'num_posts': num_posts,
+            'num_followers': num_followers,
+            'biography': bio,
+            'related_profiles': related_profiles
         }
-
+        
         return user_dict
 
     async def scrape_user_from_url(self, user_urls: list[str]):
@@ -229,14 +236,3 @@ def count_rel():
             print(f"{data['Full Name']} - {len(data['Related Profiles'])}")
 
 
-async def main():
-    usernames = ['leomessi', 'theweekend', 'arianagrande', 'cristiano', 'virdas']
-    igscr = InstagramScraper()
-    # await igscr.scrape_user_from_username(usernames=['mrtechsingh'])
-    await igscr.scrape_user_posts(user_id='173560420') # cristiano
-
-
-
-# testing purposes only
-if __name__ == '__main__':
-    asyncio.run(main())
