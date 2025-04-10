@@ -1,6 +1,6 @@
 import requests
 import user_agent
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 import httpx
 import datetime
 
@@ -12,20 +12,17 @@ import time
 
 from IPChanger import IPChanger
 
-from db.engine import make_session
-from db.influencer import Influencer
-from db.posts import Posts
 
 class InstagramScraper:
     USER_BASEURL = "https://www.instagram.com/api/v1/users/web_profile_info"
-    POST_BASEURL = "https://www.instagram.com/graphql/query/?query_hash=e769aa130647d2354c40ea6a439bfc08&variables="
+    POST_BASEURL = "https://www.instagram.com/graphql/query"
     X_IG_APP_ID = "936619743392459"
+    INSTAGRAM_ACCOUNT_DOCUMENT_ID = "9310670392322965"
     PROFILES_FOLDER = os.path.join(os.getcwd(), 'profiles')
     POSTS_FOLDER = os.path.join(os.getcwd(), 'posts')
 
     def __init__(self) -> None:
         self.ipc = IPChanger()
-        self.session = make_session()
 
         if not os.path.isdir(self.PROFILES_FOLDER):
             os.mkdir(self.PROFILES_FOLDER)
@@ -51,21 +48,16 @@ class InstagramScraper:
         data = res.json()['data']['user']
         user_dict = self.__parse_user_json(data)
 
-        inf = Influencer(**user_dict)
+        print(f"{[user_dict['instagram_id'], user_dict['name']]}")
 
-        try:
-            self.session.add(inf)
-            self.session.commit()
-            print(f"{user_dict['name']} Successfully Inserted in DB")
-        except Exception as e:
-            print(f"Error occured - {e}")
-            self.session.rollback()
         if scrape_posts:
-            self.scrape_user_posts(user_dict['instagram_id'])
+            self.scrape_user_posts(username)
 
         client.close()
 
         return {'User Name': user_dict['name']}
+    
+
     @staticmethod
     def __parse_user_json(user: dict[str, str: str]) -> dict[str, str]:
         full_name = user['full_name']
@@ -95,14 +87,29 @@ class InstagramScraper:
             self.__scrape_user(user, scrape_posts)
 
 
-    def scrape_user_posts(self, user_id: str) -> None:
+    def scrape_user_posts(self, username: str) -> None:
+
+        page_size = 12
+
         variables = {
-        "id": user_id,
-        "first": 12,
-        "after": None,
+            "after": None,
+            "before": None,
+            "data": {
+                "count": page_size,
+                "include_reel_media_seen_timestamp": True,
+                "include_relationship_info": True,
+                "latest_besties_reel_media": True,
+                "latest_reel_media": True
+            },
+            "first": page_size,
+            "last": None,
+            "username": f"{username}",
+            "__relay_internal__pv__PolarisIsLoggedInrelayprovider": True,
+            "__relay_internal__pv__PolarisShareSheetV3relayprovider": True
         }
 
-        page_num = 1
+        prev_cursor = None
+        _page_number = 1
 
         max_retries = 10
         curr_retries = 0
@@ -117,9 +124,16 @@ class InstagramScraper:
 
             client: httpx.Client = self.__get_proxied_client(async_client=False)
 
-            print(f"Scraping Page Number - {page_num}")
+            print(f"Scraping Page Number - {_page_number}")
 
-            response = client.get(self.POST_BASEURL + json.dumps(variables))
+            body = f"variables={quote(json.dumps(variables, separators=(',', ':')))}&doc_id={self.INSTAGRAM_ACCOUNT_DOCUMENT_ID}"
+
+            response = client.post(
+                url=self.POST_BASEURL,
+                data=body,
+                headers={"content-type": "application/x-www-form-urlencoded"}
+            )
+            
 
             if 'proxy-status' in response.headers:
                 print('Proxy Status Header Detected')
@@ -131,7 +145,8 @@ class InstagramScraper:
             
             
             data = response.json()
-            parsed_posts = self.__parse_posts(data['data'], user_id)
+            pp(data)
+            parsed_posts = self.__parse_posts(data['data'])
 
             if parsed_posts is None:
                 print('All posts from Past One Year have been scraped.')
@@ -140,7 +155,7 @@ class InstagramScraper:
 
             posts.extend(parsed_posts)
 
-            page_info = data['data']["user"]["edge_owner_to_timeline_media"]['page_info']
+            page_info = data['data']["xdt_api__v1__feed__user_timeline_graphql_connection"]['page_info']
 
             if not page_info['has_next_page']:
                 print('Max Amount of Posts Have Been Scraped')
@@ -154,16 +169,8 @@ class InstagramScraper:
 
             variables["after"] = page_info["end_cursor"]
 
-            page_num += 1
+            _page_num += 1
 
-
-            try:
-                self.session.bulk_insert_mappings(Posts, posts)
-                print(f"{len(posts)} Posts Successfully Inserted!")
-                self.session.commit()
-            except Exception as e:
-                print(f"There has been exception. Posts will not be committed.")
-                self.session.rollback()
             
             posts.clear()
         
@@ -189,45 +196,37 @@ class InstagramScraper:
 
             return client
 
-    def __parse_posts(self, data, user_id):
+    def __parse_posts(self, data):
         posts = []
 
-        for post in data['user']['edge_owner_to_timeline_media']['edges']:
+        for post in data['xdt_api__v1__feed__user_timeline_graphql_connection']['edges']:
             post = post['node']
-            img_url = post['display_url']
-            shortcode = post['shortcode']
-            num_comments = post['edge_media_to_comment']['count']
-            post_timestamp = post['taken_at_timestamp']
-            num_likes = post['edge_media_preview_like']['count']
+            img_url = post['display_uri']
+            shortcode = post['code']
+            num_comments = post['comment_count']
+            post_timestamp = post['taken_at']
+            num_likes = post['like_count']
 
             caption = None
             tagged_user = []
             sponsor_usr = []
 
-            if len(post['edge_media_to_caption']['edges']) == 0:
+            if len(post['caption']['text']) == 0:
                 caption = ""
            
             else:
-                caption = post['edge_media_to_caption']['edges'][0]['node']['text']
+                caption = post['caption']['text']
             
-            if len(post['edge_media_to_tagged_user']) > 0:
-                users = post['edge_media_to_tagged_user']['edges']
+            if len(post['usertags']['in']) > 0:
+                users = post['usertags']['in']
 
                 for user in users:
-                    tagged_user.append(user['node']['user']['username'])
+                    tagged_user.append(user['user']['username'])
             
-            if len(post['edge_media_to_sponsor_user']['edges']) > 0:
-                users = post['edge_media_to_sponsor_user']['edges']
-
-                for user in users:
-                    sponsor_usr.append(user['node']['sponsor']['username'])
-
             post_dict = {
-                'user_id': user_id,
                 'short_code': shortcode,
                 'image_url': img_url,
                 'tagged_users': tagged_user,
-                'sponsored_users': sponsor_usr,
                 'caption': caption,
                 'num_comments': num_comments,
                 'num_likes': num_likes,
@@ -246,7 +245,6 @@ class InstagramScraper:
             posts.append(post_dict)
 
 
-        
         return posts
 
 
