@@ -45,6 +45,7 @@ class InstagramScraper:
         req.prepare_url(url=self.USER_BASEURL, params=params)
 
         res = client.get(req.url, headers=headers)
+        print(res.status_code)
         data = res.json()['data']['user']
         user_dict = self.__parse_user_json(data)
 
@@ -86,7 +87,6 @@ class InstagramScraper:
         for user in usernames:
             self.__scrape_user(user, scrape_posts)
 
-
     def scrape_user_posts(self, username: str) -> None:
 
         page_size = 12
@@ -108,7 +108,6 @@ class InstagramScraper:
             "__relay_internal__pv__PolarisShareSheetV3relayprovider": True
         }
 
-        prev_cursor = None
         _page_number = 1
 
         max_retries = 10
@@ -145,7 +144,7 @@ class InstagramScraper:
             
             
             data = response.json()
-            pp(data)
+            # pp(data)
             parsed_posts = self.__parse_posts(data['data'])
 
             if parsed_posts is None:
@@ -169,13 +168,16 @@ class InstagramScraper:
 
             variables["after"] = page_info["end_cursor"]
 
-            _page_num += 1
+            _page_number += 1
+
+            if len(posts) > 50:
+                print(f'50 Posts Collected of {username}')
+                break
 
             
-            posts.clear()
-        
         client.close()
 
+        self.__save_posts(posts, username)
 
     def __get_proxied_client(self, async_client=True) -> httpx.AsyncClient | httpx.Client:
         proxy = self.ipc.getproxy()
@@ -216,8 +218,8 @@ class InstagramScraper:
            
             else:
                 caption = post['caption']['text']
-            
-            if len(post['usertags']['in']) > 0:
+
+            if post['usertags'] is not None:
                 users = post['usertags']['in']
 
                 for user in users:
@@ -233,20 +235,19 @@ class InstagramScraper:
                 'timestamp': post_timestamp
             }
 
-            post_time = datetime.datetime.fromtimestamp(post_timestamp)
-            curr_time = datetime.datetime.now()
-
-            one_year_ago = curr_time - datetime.timedelta(days=365)
-
-            if post_time < one_year_ago:
-                return None
-
-
             posts.append(post_dict)
 
 
         return posts
 
+    def __save_posts(self, posts, username):
+        filepath = os.path.join(self.POSTS_FOLDER, f"{username}.json")
+
+        with open(filepath, 'w') as f:
+            json.dump(posts, f, indent=2)
+        
+        print(f'{len(posts)} Posts for {username} saved at {filepath}')
+        
 
 
 def count_rel():
